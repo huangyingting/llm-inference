@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm
+  annotations:
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "kubernetes.azure.com/scalesetpriority", "Operator": "Equal", "Value": "spot", "Effect": "NoSchedule"}, {"Key": "sku", "Operator": "Equal", "Value": "gpu", "Effect": "NoSchedule"}]'
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: vllm
+  namespace: llm
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 16Gi
+  storageClassName: azurefile-csi-premium
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: vllm
+  name: vllm
+  namespace: llm
+spec:
+  selector:
+    matchLabels:
+      app: vllm
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                  - vllm
+            topologyKey: "kubernetes.io/hostname"    
+      containers:
+      - image: ghcr.io/huangyingting/inference-images-vllm:main
+        imagePullPolicy: Always
+        name: vllm
+        resources:
+          limits:
+           nvidia.com/gpu: 1        
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP        
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm        
+        - name: vllm
+          mountPath: "/data"
+      volumes:
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+      - name: vllm
+        persistentVolumeClaim:
+          claimName: vllm
