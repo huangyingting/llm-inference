@@ -161,4 +161,4 @@ curl http://localhost:9090/v1/completions \
 ```
 
 ## Wrap-up
-In summary, this article has outlined an approach to deploy large language models on Azure Kubernetes Service in a cost-optimized and scalable manner for private inference. By combining cloud-native techniques like spot instances and autoscaling with model optimization methods like quantization and batching, organizations can unlock the advanced AI capabilities of large models while maintaining control, low latency, and reduced costs compared to public cloud services. 
+In summary, this article has outlined an approach to deploy large language models on Azure Kubernetes Service in a cost-optimized and scalable manner for private inference. By combining cloud-native techniques like spot instances and autoscaling with model optimization methods like quantization and batching, organizations can unlock the advanced AI capabilities of large models while maintaining control, low latency, and reduced costs compared to public services. 
