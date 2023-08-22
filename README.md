@@ -26,10 +26,10 @@ Beyond raw compute costs, the development, infrastructure, and maintenance requi
 This proof-of-concept leverages Azure Kubernetes Service (AKS), quantization, and batch inference to enable a cost-optimized private deployment of large language models while maintaining scalability and fault tolerance.
 Key techniques:
 - AKS enables the use of spot instances and GPUs through configurable node pools. Spot instances significantly reduce compute costs compared to on-demand instance pricing. To handle potential node evictions, AKS cluster autoscaler component monitors pod resource requirements and calculates the capacity needed for scheduled GPU workloads. It then automatically adjusts node counts to match workload demands. Considering of a 5% eviction rate, a 2 replicas GPU workalod (each replica is in a seperated node) would have at least 99.75% chance alive to serve the request. This allows the cluster to leverage cost-savings from spot instances while maintaining available capacity.
-- Quantization is a technique to decrease model size and compute requirements for large language models (LLMs). It works by converting the high-precision floating point values used to represent weights and activations into lower-precision fixed-point representations that require less memory. This weight sharing through lower numeric precision allows for substantial reductions in model size and faster inference times. Some well-known quantization methods for LLMs include GGML and GPT-Q. 
-- Batching combines multiple inference requests into a batch call instead of handling requests one by one, improving utilization for intermittent loads. This technique is especially useful for LLMs since they are compute-intensive and can take several seconds to complete a single inference request. vllm and text-generation-inference are two typical frameworks of batch inference for LLMs. In next proof-of-concept deployment section, we will use vllm to demonstrate the benefits of batching.
+- Quantization is a technique to decrease model size and compute requirements for large language models (LLMs). It works by converting the high-precision floating point values used to represent weights and activations into lower-precision fixed-point representations that require less memory. This weight sharing through lower numeric precision allows for substantial reductions in model size and faster inference times. Some well-known quantization methods for LLMs include [GGML](https://github.com/ggerganov/ggml) and [GPT-Q](https://arxiv.org/abs/2210.17323). 
+- Batching combines multiple inference requests into a batch call instead of handling requests one by one, improving utilization for intermittent loads. This technique is especially useful for LLMs since they are compute-intensive and can take several seconds to complete a single inference request. [vllm](https://github.com/vllm-project/vllm) and [text-generation-inference](https://github.com/huggingface/text-generation-inference) are two typical frameworks of batch inference for LLMs. In next proof-of-concept deployment section, we will use vllm to demonstrate the benefits of batching.
 
-![Architecture](https://raw.githubusercontent.com/huangyingting/llm-inference/main/docs/images/LLM-AKS.svg)
+![Architecture Design](https://raw.githubusercontent.com/huangyingting/llm-inference/main/docs/images/LLM-AKS.svg)
 
 By combining these techniques, good speedup can be obtained while maintaining model accuracy, thus improving actual inference latency and throughput of LLMs with affordable and scalable private deployment.
 
@@ -49,7 +49,7 @@ We need to define the following environment variables for creating GPU spot node
 export RESOURCE_GROUP_NAME=your_aks_resource_group_name
 export CLUSTER_NAME=your_aks_cluster_name
 export REGION=your_aks_cluster_region
-# GPU VM size
+# GPU VM size, use Standard_NC4as_T4_v3 for PoC purpose
 export VM_SIZE=Standard_NC4as_T4_v3
 ```
 
@@ -74,7 +74,7 @@ az aks nodepool add \
 ```
 
 ### Deploy LLM inference service
-Now you can deploy the LLM inference service to the AKS cluster. The deployment manifests are located in [this place](./vllm/manifests/), there are two manifests, each represents a different storage backend for storing the model files:
+Now you can deploy the LLM inference service to the AKS cluster. The deployment manifests are located in [this place](https://github.com/huangyingting/llm-inference/vllm/manifests/), there are two manifests, each represents a different storage backend for storing the model files:
 
 `vllm-azure-disk.yaml` will deploy a `StatefulSet` with 2 replicas and a Service for the LLM inference service. The StatefulSet will be configured with pod anti-affinity to ensure that the replicas are scheduled on different nodes. The StatefulSet will also be configured with tolerations to ensure that the replicas are scheduled on the GPU spot node pool. The Service will be configured with a ClusterIP to expose the LLM inference service on the AKS cluster. Each replica will be configured with a PersistentVolumeClaim to mount a 16GB Azure Disk for storing the model files.
 
@@ -86,7 +86,7 @@ AKS will taints the GPU spot nodes with `nvidia.com/gpu:NoSchedule`, `sku=gpu:No
 
 We can create a namespace and add default tolerations to it. This ensures all pods in the namespace can be scheduled on GPU spot nodes.
 
-The following example creates the 'llm' namespace and adds the required tolerations:
+The following example creates the `llm` namespace and adds the required tolerations:
 
 ```yaml
 apiVersion: v1
