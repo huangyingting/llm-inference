@@ -1,7 +1,11 @@
 # Optimizing Cost and Operations for Private Large Language Model Inference on Azure
 
 ## Introduction
-This article provides a method for private and cost-optimized deployment of large language models on the Azure cloud. It assumes the reader has foundational knowledge of large language models and Kubernetes. The proposed solution utilizes Azure Kubernetes Service along with open source projects for fast inference to build a proof-of-concept for affordable large language model hosting.
+This article provides a method for private and cost-optimized deployment of large language models on the Azure cloud. It assumes the reader has foundational knowledge of large language models and Kubernetes. 
+
+It utilizes AKS spot instances, quantization techniques, and batching inference to reduce compute costs compared to traditional deployment approaches.
+
+A [proof-of-concept deployment](https://github.com/huangyingting/llm-inference) is presented using tools like cluster autoscaler, GPU node pools, pod affinity and tolerations to enable fast and resilient inference on low-cost spot instance GPU nodes.
 
 ### Reasons for running large language models privately
 There are several motivations for organizations to run large language models privately:
@@ -25,18 +29,20 @@ Key techniques:
 - Quantization is a technique to decrease model size and compute requirements for large language models (LLMs). It works by converting the high-precision floating point values used to represent weights and activations into lower-precision fixed-point representations that require less memory. This weight sharing through lower numeric precision allows for substantial reductions in model size and faster inference times. Some well-known quantization methods for LLMs include GGML and GPT-Q. 
 - Batching combines multiple inference requests into a batch call instead of handling requests one by one, improving utilization for intermittent loads. This technique is especially useful for LLMs since they are compute-intensive and can take several seconds to complete a single inference request. vllm and text-generation-inference are two typical frameworks of batch inference for LLMs. In next proof-of-concept deployment section, we will use vllm to demonstrate the benefits of batching.
 
-![Architecture](docs/images/LLM-AKS.svg "Architecture")
+![Architecture](https://raw.githubusercontent.com/huangyingting/llm-inference/main/docs/images/LLM-AKS.svg)
 
 By combining these techniques, good speedup can be obtained while maintaining model accuracy, thus improving actual inference latency and throughput of LLMs with affordable and scalable private deployment.
 
 ## Proof-of-concept deployment and considerations
-Before you begin, please make sure you have the following prerequisites:
+Before we begin, please make sure you have the following prerequisites:
 - Have an existing AKS cluster. If you don't have a cluster, create one using the [Azure CLI](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-cli), [Azure PowerShell](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-powershell), or the [Azure portal](https://learn.microsoft.com/en-us/azure/aks/learn/quick-kubernetes-deploy-portal).
 - Have `aks-preview` extension installed and `GPUDedicatedVHDPreview` feature registered. You can follow the [instructions](https://docs.microsoft.com/en-us/azure/aks/gpu-cluster#enable-the-gpu-dedicated-vhd-preview-feature) to install the extension and register the feature.
-- Have a container image for your LLM inference. For PoC purpose we use [vllm](https://github.com/vllm-project/vllm) as the inference framework and [this image](ghcr.io/huangyingting/inference-images-vllm:main), the image is built from [this Dockerfile](./vllm/Dockerfile)
+- Have a container image for your LLM inference. For PoC purpose we use [vllm](https://github.com/vllm-project/vllm) as the inference framework and [this image](ghcr.io/huangyingting/llm-inference-vllm:main), the image is built from [this Dockerfile](https://github.com/huangyingting/llm-inference/vllm/Dockerfile)
+
+**NOTE**: It is suggested to build your own image for production use. You have full control over all dependencies and compatibility between GPU accelerated application and GPU driver installed on GPU node. For more information, please refer to [CUDA Compatibility and Upgrades](https://docs.nvidia.com/deploy/cuda-compatibility/index.html).
 
 ### Define environment variables
-First, define the following environment variables for your AKS cluster. You can find the values for these variables in the Azure portal or by using the Azure CLI.
+We need to define the following environment variables for creating GPU spot node pool. You can find the values for these variables in the Azure portal or by using the Azure CLI.
 
 ```shell
 # AKS cluster info
@@ -64,8 +70,23 @@ az aks nodepool add \
     --eviction-policy Delete \
     --spot-max-price -1 \
     --min-count 1 \
-    --max-count 1
+    --max-count 2
 ```
+
+### Deploy LLM inference service
+Now you can deploy the LLM inference service to the AKS cluster. The deployment manifests are located in [this place](./vllm/manifests/), there are two manifests, each represents a different storage backend for storing the model files:
+
+`vllm-azure-disk.yaml` will deploy a `StatefulSet` with 2 replicas and a Service for the LLM inference service. The StatefulSet will be configured with pod anti-affinity to ensure that the replicas are scheduled on different nodes. The StatefulSet will also be configured with tolerations to ensure that the replicas are scheduled on the GPU spot node pool. The Service will be configured with a ClusterIP to expose the LLM inference service on the AKS cluster. Each replica will be configured with a PersistentVolumeClaim to mount a 16GB Azure Disk for storing the model files.
+
+`vllm-azure-files.yaml` will deploy a `Deployment` with 2 replicas and a Service for the LLM inference service. The StatefulSet will be configured with pod anti-affinity to ensure that the replicas are scheduled on different nodes. The StatefulSet will also be configured with tolerations to ensure that the replicas are scheduled on the GPU spot node pool. The Service will be configured with a ClusterIP to expose the LLM inference service on the AKS cluster. Each replica will be configured with a PersistentVolumeClaim to mount a 16GB Azure File Share for storing the model files, the persistent volume is shared between replicas.
+
+AKS also supports shared disk, however, it only supports block volume, Multi-node read write is not supported by common file systems (e.g. ext4, xfs), it's only supported by cluster file systems. So we can't use shared disk for storing the model files.
+
+AKS will taints the GPU spot nodes with `nvidia.com/gpu:NoSchedule`, `sku=gpu:NoSchedule` and `kubernetes.azure.com/scalesetpriority=spot:NoSchedule`. To schedule GPU workloads on spot instance nodes, we need to add tolerations to the pod spec. This allows the pods to be scheduled on nodes tainted by AKS for GPU spot nodes.
+
+We can create a namespace and add default tolerations to it. This ensures all pods in the namespace can be scheduled on GPU spot nodes.
+
+The following example creates the 'llm' namespace and adds the required tolerations:
 
 ```yaml
 apiVersion: v1
@@ -74,143 +95,27 @@ metadata:
   name: llm
   annotations:
     scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "kubernetes.azure.com/scalesetpriority", "Operator": "Equal", "Value": "spot", "Effect": "NoSchedule"}, {"Key": "sku", "Operator": "Equal", "Value": "gpu", "Effect": "NoSchedule"}]'
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  labels:
-    app: vllm
-  name: vllm
-  namespace: llm
-spec:
-  selector:
-    matchLabels:
-      app: vllm
-  serviceName: vllm
-  replicas: 2
-  template:
-    metadata:
-      labels:
-        app: vllm
-    spec:
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-                - key: "app"
-                  operator: In
-                  values:
-                  - vllm
-            topologyKey: "kubernetes.io/hostname"    
-      containers:
-      - image: ghcr.io/huangyingting/inference-images-vllm:main
-        imagePullPolicy: Always
-        name: vllm
-        resources:
-          limits:
-           nvidia.com/gpu: 1        
-        ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP        
-        volumeMounts:
-        - name: shm
-          mountPath: /dev/shm        
-        - name: vllm
-          mountPath: "/data"
-      volumes:
-      - name: shm
-        emptyDir:
-          medium: Memory
-          sizeLimit: 1Gi
-  volumeClaimTemplates:
-  - metadata:
-      name: vllm
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: managed-csi
-      resources:
-        requests:
-          storage: 16Gi      
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: vllm
-  namespace: llm
-  labels:
-    app: vllm
-spec:
-  ports:
-  - port: 8080
-    targetPort: 8000
-  selector:
-    app: vllm
 ```
 
+Now any pods created in the 'llm' namespace will have the tolerations needed to schedule on spot instance nodes with GPUs. This provides an easy way to deploy GPU workloads on spot instances.
+
+To start the deployment, run the following command:
 ```shell
-az vmss simulate-eviction --resource-group MC_$RESOURCE_GROUP_NAME_$CLUSTER_NAME_$REGION --name $NODE_POOL --instance-id 0
+kubeclt apply -f vllm/manifests/vllm-azure-disk.yaml
 ```
+**NOTE**: The manifests are configured to use the image `ghcr.io/huangyingting/llm-inference-vllm:main`, you can change it to your own image.
+
+
+### AKS cluster autoscaler
+We deployed two replicas, however, the GPU node only has 1 node, cluster autoscaler noticed that and scale up the node pool to 2 nodes. You can check the status of cluster autoscaler by running the following command:
 
 ```shell
-k describe pod vllm-1 -n llm
+kubectl describe pod vllm-1 -n llm
+
 Name:             vllm-1
 Namespace:        llm
 Priority:         0
-Service Account:  default
-Node:             aks-gpunp-98036146-vmss000004/10.224.0.6
-Start Time:       Mon, 21 Aug 2023 05:40:20 +0000
-Labels:           app=vllm
-                  controller-revision-hash=vllm-54b57d668
-                  statefulset.kubernetes.io/pod-name=vllm-1
-Annotations:      <none>
-Status:           Pending
-IP:               
-IPs:              <none>
-Controlled By:    StatefulSet/vllm
-Containers:
-  vllm:
-    Container ID:   
-    Image:          ghcr.io/huangyingting/inference-images-vllm:main
-    Image ID:       
-    Port:           8080/TCP
-    Host Port:      0/TCP
-    State:          Waiting
-      Reason:       ContainerCreating
-    Ready:          False
-    Restart Count:  0
-    Limits:
-      nvidia.com/gpu:  1
-    Requests:
-      nvidia.com/gpu:  1
-    Environment:       <none>
-    Mounts:
-      /data from vllm-models-disk (rw)
-      /dev/shm from shm (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-pn6gb (ro)
-Conditions:
-  Type              Status
-  Initialized       True 
-  Ready             False 
-  ContainersReady   False 
-  PodScheduled      True 
-Volumes:
-  vllm-models-disk:
-    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
-    ClaimName:  vllm-models-disk-vllm-1
-    ReadOnly:   false
-  shm:
-    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
-    Medium:     Memory
-    SizeLimit:  1Gi
-  kube-api-access-pn6gb:
-    Type:                    Projected (a volume that contains injected data from multiple sources)
-    TokenExpirationSeconds:  3607
-    ConfigMapName:           kube-root-ca.crt
-    ConfigMapOptional:       <nil>
-    DownwardAPI:             true
-QoS Class:                   BestEffort
+...
 Node-Selectors:              <none>
 Tolerations:                 kubernetes.azure.com/scalesetpriority=spot:NoSchedule
                              node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
@@ -226,56 +131,33 @@ Events:
   Warning  FailedScheduling        34s                    default-scheduler        0/3 nodes are available: 1 node(s) had untolerated taint {node.kubernetes.io/network-unavailable: }, 2 Insufficient nvidia.com/gpu. preemption: 0/3 nodes are available: 1 Preemption is not helpful for scheduling, 2 No preemption victims found for incoming pod..
   Normal   Scheduled               19s                    default-scheduler        Successfully assigned llm/vllm-1 to aks-gpunp-98036146-vmss000004
   Normal   SuccessfulAttachVolume  9s                     attachdetach-controller  AttachVolume.Attach succeeded for volume "pvc-d3ccf681-99ae-411a-8d72-33063bf9e422"
-  Normal   Pulling                 4s                     kubelet                  Pulling image "ghcr.io/huangyingting/inference-images-vllm:main"
+  Normal   Pulling                 4s                     kubelet                  Pulling image "ghcr.io/huangyingting/llm-inference-vllm:main"
 ```
 
+We can also trigger node eviction by issuing the following command, this will simulate a node eviction and trigger the cluster autoscaler to scale up the node pool:
+
 ```shell
+az vmss simulate-eviction --resource-group MC_$RESOURCE_GROUP_NAME_$CLUSTER_NAME_$REGION --name $NODE_POOL --instance-id 0
+```
+
+### Test LLM inference
+The deployment comes with a default model `facebook/opt-125m` and an OpenAI API compatiable endpoint. You can test the inference service by running the following command:
+
+```shell
+# port forwarding to the service
 kubeclt port-forward svc/vllm 9090:8080 -n llm
 ```
 
 ```shell
-curl --location 'http://localhost:9090/models/apply' \
---header 'Content-Type: application/json' \
---data-raw '{
-    "id": "TheBloke/vicuna-7B-v1.5-GGML/vicuna-7b-v1.5.ggmlv3.q4_0.bin",
-    "name": "vicuna-7b-v1.5"
-}'
+curl http://localhost:9090/v1/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+        "model": "facebook/opt-125m",
+        "prompt": "San Francisco is a",
+        "max_tokens": 7,
+        "temperature": 0
+    }'
 ```
 
-```shell
-cat <<EOF > vicuna-7b-v1.5.yaml 
-backend: llama
-context_size: 2000
-f16: true 
-gpu_layers: 43
-low_vram: false
-mmap: true
-mmlock: true
-batch: 512
-name: vicuna-7b-v1.5
-parameters:
-  model: vicuna-7b-v1.5.ggmlv3.q4_0.bin
-  temperature: 0.2
-  top_k: 80
-  top_p: 0.7
-roles:
-  assistant: '### Response:'
-  system: '### System:'
-  user: '### Instruction:'
-template:
-  chat: vicuna-chat
-  completion: vicuna-completion
-EOF
-```
-
-```shell
-kubectl delete pod --all -n llm
-```
-
-```shell
-curl http://localhost:9090/v1/chat/completions -H "Content-Type: application/json" -d '{
-     "model": "vicuna-7b-v1.5",
-     "messages": [{"role": "user", "content": "How are you?"}],
-     "temperature": 0.9 
-   }'
-```
+## Wrap-up
+In summary, this article has outlined an approach to deploy large language models on Azure Kubernetes Service in a cost-optimized and scalable manner for private inference. By combining cloud-native techniques like spot instances and autoscaling with model optimization methods like quantization and batching, organizations can unlock the advanced AI capabilities of large models while maintaining control, low latency, and reduced costs compared to public cloud services. 
