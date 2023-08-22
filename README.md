@@ -16,7 +16,7 @@ There are several motivations for organizations to run large language models pri
 - Compliance - For regulated industries like healthcare and finance, running a private model may be important for compliance with data protection and privacy regulations.
 
 ### Challenges of running inference cost-effectively and efficiently
-Deploying large language models for inference is compute-intensive, requiring high-end GPUs and specialized hardware that can be very expensive to provision on cloud platforms. For example, an 80GB Nvidia A100 GPU on Azure can generate approximately 60 completion tokens per second when running a 13 billion parameter model like Anthropic's Claude or Vicuna. If we calculate the monthly cost of running just a single A100 virtual machine in Azure's East US region, it comes out to $2,680. This one GPU could generate around 157 million tokens per month.
+Deploying large language models for inference is compute-intensive, requiring high-end GPUs and specialized hardware that can be very expensive to provision on cloud platforms. For example, an 80GB Nvidia A100 GPU on Azure can generate approximately 60 completion tokens per second when running a 13 billion parameter model like Vicuna. If we calculate the monthly cost of running just a single A100 virtual machine in Azure's East US region, it comes out to $2,680. This one GPU could generate around 157 million tokens per month.
 
 In contrast, conversational services like ChatGPT offered through Azure OpenAI are much more cost-effective. At Azure OpenAI ChatGPT's rate of $0.0015 per token, those 157 million tokens would only cost $236.52. Additionally, ChatGPT provides a smoother conversational experience compared to a basic 13B parameter model.
 
