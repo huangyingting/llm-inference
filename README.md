@@ -76,7 +76,7 @@ az aks nodepool add \
 ### Deploy LLM inference service
 With the AKS GPU node pool provisioned, we can now deploy the LLM inference service. The deployment manifests are located [here](https://github.com/huangyingting/llm-inference/vllm/manifests/). There are two manifest options, each using a different storage backend for storing the model files:
 
-The `vllm-azure-disk.yaml` manifest deploys a `StatefulSet`` with 2 replicas and a Service for the LLM inference service. The StatefulSet is configured with pod anti-affinity to ensure the replicas are scheduled on different nodes. It also has tolerations to schedule the replicas on the GPU spot node pool. The Service exposes the LLM inference service on the AKS cluster using a ClusterIP. Each StatefulSet replica mounts a 16GB Azure Disk PersistentVolumeClaim for storing the model files.
+The `vllm-azure-disk.yaml` manifest deploys a `StatefulSet` with 2 replicas and a Service for the LLM inference service. The StatefulSet is configured with pod anti-affinity to ensure the replicas are scheduled on different nodes. It also has tolerations to schedule the replicas on the GPU spot node pool. The Service exposes the LLM inference service on the AKS cluster using a ClusterIP. Each StatefulSet replica mounts a 16GB Azure Disk PersistentVolumeClaim for storing the model files.
 
 The `vllm-azure-files.yaml` manifest deploys a `Deployment` with 2 replicas and a Service for the LLM inference service. The Deployment has pod anti-affinity to schedule replicas on different nodes. It also has tolerations to schedule replicas on the GPU spot node pool. The Service exposes the inference service on the AKS cluster using a ClusterIP. Each replica mounts a 16GB Azure File share PersistentVolumeClaim for storing model files, with the PV shared between replicas.
 
@@ -146,7 +146,7 @@ The deployment comes with a default model `facebook/opt-125m` and an OpenAI API 
 
 ```shell
 # port forwarding to the service
-kubeclt port-forward svc/vllm 9090:8080 -n llm
+kubectl port-forward svc/vllm 9090:8080 -n llm
 ```
 
 ```shell
