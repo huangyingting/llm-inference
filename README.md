@@ -1,11 +1,11 @@
-# Optimizing Cost and Operations for Private Large Language Model Inference on Azure
+# Cost-Effective Private Large Language Model Inference on Azure Kubernetes Service
 
 ## Introduction
 This article provides a method for private and cost-optimized deployment of large language models on the Azure cloud. It assumes the reader has foundational knowledge of large language models and Kubernetes. 
 
 It utilizes AKS spot instances, quantization techniques, and batching inference to reduce compute costs compared to traditional deployment approaches.
 
-A [proof-of-concept deployment](https://github.com/huangyingting/llm-inference) is presented using tools like cluster autoscaler, GPU node pools, pod affinity and tolerations to enable fast and resilient inference on low-cost spot instance GPU nodes.
+A [proof-of-concept deployment](https://github.com/huangyingting/llm-inference) demonstrates using cluster autoscaler, GPU node pools, pod affinity and tolerations on Azure Kubernetes Service to enable fast and resilient large language model inference leveraging low-cost spot instance GPU nodes.
 
 ### Reasons for running large language models privately
 There are several motivations for organizations to run large language models privately:
@@ -42,7 +42,7 @@ Before we begin, please make sure you have the following prerequisites:
 **NOTE**: It is suggested to build your own image for production use. You have full control over all dependencies and compatibility between GPU accelerated application and GPU driver installed on GPU node. For more information, please refer to [CUDA Compatibility and Upgrades](https://docs.nvidia.com/deploy/cuda-compatibility/index.html).
 
 ### Define environment variables
-We need to define the following environment variables for creating GPU spot node pool. You can find the values for these variables in the Azure portal or by using the Azure CLI.
+We first need to define the following environment variables to configure the GPU spot node pool. The values for these variables can be obtained from the Azure portal or using the Azure CLI:
 
 ```shell
 # AKS cluster info
@@ -54,7 +54,7 @@ export VM_SIZE=Standard_NC4as_T4_v3
 ```
 
 ### Add a GPU spot node pool
-Now you can add a spot node pool for GPU nodes into existing AKS cluster. The command in below will create a new node pool named `gpunp` with 1 node of `Standard_NC4as_T4_v3` size. The node pool will be configured with GPU taints and cluster autoscaler. The GPU taints will ensure that only GPU workloads are scheduled on the node pool. The cluster autoscaler will automatically adjust the number of nodes in the node pool based on the workload demands. The node pool will also be configured with spot instances to reduce compute costs. The spot-max-price is set to -1 to ensure that the node pool will not be evicted due to price changes. The min-count and max-count are set to 1 to ensure that the node pool will always have at least 1 node available for scheduling.
+Now we can add a spot node pool for GPU nodes into existing AKS cluster. The command in below will create a new node pool named `gpunp` with 1 node of `Standard_NC4as_T4_v3` size. The node pool will be configured with GPU taints and cluster autoscaler. The GPU taints will ensure that only GPU workloads are scheduled on the node pool. The cluster autoscaler will automatically adjust the number of nodes in the node pool based on the workload demands. The node pool will also be configured with spot instances to reduce compute costs. The spot-max-price is set to -1 to ensure that the node pool will not be evicted due to price changes. The min-count and max-count are set to 1 to ensure that the node pool will always have at least 1 node available for scheduling.
 
 ```shell
 az aks nodepool add \
@@ -74,20 +74,15 @@ az aks nodepool add \
 ```
 
 ### Deploy LLM inference service
-Now you can deploy the LLM inference service to the AKS cluster. The deployment manifests are located in [this place](https://github.com/huangyingting/llm-inference/vllm/manifests/), there are two manifests, each represents a different storage backend for storing the model files:
+With the AKS GPU node pool provisioned, we can now deploy the LLM inference service. The deployment manifests are located [here](https://github.com/huangyingting/llm-inference/vllm/manifests/). There are two manifest options, each using a different storage backend for storing the model files:
 
-`vllm-azure-disk.yaml` will deploy a `StatefulSet` with 2 replicas and a Service for the LLM inference service. The StatefulSet will be configured with pod anti-affinity to ensure that the replicas are scheduled on different nodes. The StatefulSet will also be configured with tolerations to ensure that the replicas are scheduled on the GPU spot node pool. The Service will be configured with a ClusterIP to expose the LLM inference service on the AKS cluster. Each replica will be configured with a PersistentVolumeClaim to mount a 16GB Azure Disk for storing the model files.
+The `vllm-azure-disk.yaml` manifest deploys a `StatefulSet`` with 2 replicas and a Service for the LLM inference service. The StatefulSet is configured with pod anti-affinity to ensure the replicas are scheduled on different nodes. It also has tolerations to schedule the replicas on the GPU spot node pool. The Service exposes the LLM inference service on the AKS cluster using a ClusterIP. Each StatefulSet replica mounts a 16GB Azure Disk PersistentVolumeClaim for storing the model files.
 
-`vllm-azure-files.yaml` will deploy a `Deployment` with 2 replicas and a Service for the LLM inference service. The StatefulSet will be configured with pod anti-affinity to ensure that the replicas are scheduled on different nodes. The StatefulSet will also be configured with tolerations to ensure that the replicas are scheduled on the GPU spot node pool. The Service will be configured with a ClusterIP to expose the LLM inference service on the AKS cluster. Each replica will be configured with a PersistentVolumeClaim to mount a 16GB Azure File Share for storing the model files, the persistent volume is shared between replicas.
+The `vllm-azure-files.yaml` manifest deploys a `Deployment` with 2 replicas and a Service for the LLM inference service. The Deployment has pod anti-affinity to schedule replicas on different nodes. It also has tolerations to schedule replicas on the GPU spot node pool. The Service exposes the inference service on the AKS cluster using a ClusterIP. Each replica mounts a 16GB Azure File share PersistentVolumeClaim for storing model files, with the PV shared between replicas.
 
-AKS also supports shared disk, however, it only supports block volume, Multi-node read write is not supported by common file systems (e.g. ext4, xfs), it's only supported by cluster file systems. So we can't use shared disk for storing the model files.
+AKS supports shared disks using block volumes. However, multi-node read/write is not supported on common filesystems like ext4 or xfs - only cluster filesystems allow this. Therefore, shared disks cannot be used for storing model files that need to be accessed from multiple nodes.
 
-AKS will taints the GPU spot nodes with `nvidia.com/gpu:NoSchedule`, `sku=gpu:NoSchedule` and `kubernetes.azure.com/scalesetpriority=spot:NoSchedule`. To schedule GPU workloads on spot instance nodes, we need to add tolerations to the pod spec. This allows the pods to be scheduled on nodes tainted by AKS for GPU spot nodes.
-
-We can create a namespace and add default tolerations to it. This ensures all pods in the namespace can be scheduled on GPU spot nodes.
-
-The following example creates the `llm` namespace and adds the required tolerations:
-
+AKS taints GPU spot nodes using `nvidia.com/gpu:NoSchedule`, `sku=gpu:NoSchedule` and `kubernetes.azure.com/scalesetpriority=spot:NoSchedule`. To schedule GPU workloads on these nodes, pods need tolerations added to their spec. Creating a namespace with following tolerations ensures all pods within it can be placed on the tainted GPU spot nodes.
 ```yaml
 apiVersion: v1
 kind: Namespace
@@ -97,17 +92,24 @@ metadata:
     scheduler.alpha.kubernetes.io/defaultTolerations: '[{"Key": "kubernetes.azure.com/scalesetpriority", "Operator": "Equal", "Value": "spot", "Effect": "NoSchedule"}, {"Key": "sku", "Operator": "Equal", "Value": "gpu", "Effect": "NoSchedule"}]'
 ```
 
-Now any pods created in the 'llm' namespace will have the tolerations needed to schedule on spot instance nodes with GPUs. This provides an easy way to deploy GPU workloads on spot instances.
+With the default tolerations set on the `llm` namespace, any pods created within it will automatically have the required tolerations to schedule on GPU spot instance nodes. This gives a straightforward way to deploy GPU workloads leveraging cost-efficient spot instances.
 
-To start the deployment, run the following command:
+To begin the deployment by using `StatefulSet`, execute this command:
+
 ```shell
 kubeclt apply -f vllm/manifests/vllm-azure-disk.yaml
 ```
+
+To begin the deployment by using `Deployment`, execute this command:
+```shell
+kubeclt apply -f vllm/manifests/vllm-azure-files.yaml
+```
+
 **NOTE**: The manifests are configured to use the image `ghcr.io/huangyingting/llm-inference-vllm:main`, you can change it to your own image.
 
 
 ### AKS cluster autoscaler
-We deployed two replicas, however, the GPU node only has 1 node, cluster autoscaler noticed that and scale up the node pool to 2 nodes. You can check the status of cluster autoscaler by running the following command:
+We deployed two replicas but initially there was only 1 GPU node. The cluster autoscaler detected the insufficient resources and scaled the node pool up to 2 nodes. The status of the autoscaler can be checked by running this command:
 
 ```shell
 kubectl describe pod vllm-1 -n llm
@@ -134,14 +136,13 @@ Events:
   Normal   Pulling                 4s                     kubelet                  Pulling image "ghcr.io/huangyingting/llm-inference-vllm:main"
 ```
 
-We can also trigger node eviction by issuing the following command, this will simulate a node eviction and trigger the cluster autoscaler to scale up the node pool:
-
+We can simulate a node eviction to trigger scaling by the cluster autoscaler. This is done by running the following command, which will evict a node and cause the autoscaler to scale up the node pool:
 ```shell
 az vmss simulate-eviction --resource-group MC_$RESOURCE_GROUP_NAME_$CLUSTER_NAME_$REGION --name $NODE_POOL --instance-id 0
 ```
 
 ### Test LLM inference
-The deployment comes with a default model `facebook/opt-125m` and an OpenAI API compatiable endpoint. You can test the inference service by running the following command:
+The deployment comes with a default model `facebook/opt-125m` and an OpenAI API compatiable endpoint. We can test the inference service by running the following command:
 
 ```shell
 # port forwarding to the service
