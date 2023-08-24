@@ -1,9 +1,8 @@
 name: build-images
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - 'main'
     tags:
       - 'v*'
   pull_request:
@@ -21,8 +20,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerfile: ./vllm/Dockerfile          
+          - dockerfile: ./vllm/Dockerfile
             image: ${{ github.repository }}-vllm
+          - dockerfile: ./localai/Dockerfile
+            image: ${{ github.repository }}-localai
     permissions:
       contents: read
       packages: write
