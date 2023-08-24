@@ -8,10 +8,10 @@ FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION a
 ARG VLLM_VERSION
 ENV PATH="/usr/local/cuda/bin:${PATH}"
 WORKDIR /app
-RUN apt-get update -y && \
-    apt-get install -y python3 python3-pip git && \
+RUN apt update -y && \
+    apt install -y python3 python3-pip git && \
     python3 -m pip install --upgrade pip && \
-    apt-get clean && \
+    apt clean && \
     rm -rf /var/lib/apt/lists/* && \
     git clone https://github.com/vllm-project/vllm && \
     cd vllm && \
@@ -28,16 +28,16 @@ ENV GPU_MEMORY_UTILIZATION=0.9
 COPY --from=builder /app/vllm/requirements.txt /tmp/requirements.txt
 COPY --from=builder /app/vllm/dist /tmp/dist  
 
-RUN apt-get update -y && \
-    apt-get install -y python3 python3-pip && \
+RUN apt update -y && \
+    apt install -y python3 python3-pip && \
     python3 -m pip install --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     find /tmp/dist/*.whl | xargs pip install --no-cache-dir && \
     rm -f /tmp/requirements.txt && \
     rm -rf /tmp/dist && \
-    apt-get remove -y python3-pip && \
-    apt-get autoremove -y && \
-    apt-get clean && \
+    # apt remove -y python3-pip && \
+    apt autoremove -y && \
+    # apt clean && \
     mkdir /models 
 
 EXPOSE 8000
