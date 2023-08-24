@@ -74,7 +74,7 @@ az aks nodepool add \
 ```
 
 ### Deploy LLM inference service
-With the AKS GPU node pool provisioned, we can now deploy the LLM inference service. The deployment manifests are located [here](https://github.com/huangyingting/llm-inference/vllm/manifests/). There are two manifest options, each using a different storage backend for storing the model files:
+With the AKS GPU node pool provisioned, we can now deploy the LLM inference service. Use vllm for example, the deployment manifests are located [here](https://github.com/huangyingting/llm-inference/vllm/manifests/). There are two manifest options, each using a different storage backend for storing the model files:
 
 The `vllm-azure-disk.yaml` manifest deploys a `StatefulSet` with 2 replicas and a Service for the LLM inference service. The StatefulSet is configured with pod anti-affinity to ensure the replicas are scheduled on different nodes. It also has tolerations to schedule the replicas on the GPU spot node pool. The Service exposes the LLM inference service on the AKS cluster using a ClusterIP. Each StatefulSet replica mounts a 16GB Azure Disk PersistentVolumeClaim for storing the model files.
 
@@ -142,7 +142,7 @@ az vmss simulate-eviction --resource-group MC_$RESOURCE_GROUP_NAME_$CLUSTER_NAME
 ```
 
 ### Test LLM inference
-The deployment comes with a default model `facebook/opt-125m` and an OpenAI API compatiable endpoint. We can test the inference service by running the following command:
+The deployment comes with a default model `lmsys/vicuna-7b-v1.5` and an OpenAI API compatiable endpoint. We can test the inference service by running the following command:
 
 ```shell
 # port forwarding to the service
@@ -150,14 +150,12 @@ kubectl port-forward svc/vllm 9090:8080 -n llm
 ```
 
 ```shell
-curl http://localhost:9090/v1/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-        "model": "facebook/opt-125m",
-        "prompt": "San Francisco is a",
-        "max_tokens": 7,
-        "temperature": 0
-    }'
+curl http://localhost:8192/v1/chat/completions -H "Content-Type: application/json" -d '{
+     "model": "lmsys/vicuna-7b-v1.5",
+     "max_tokens": 1024,
+     "messages": [{"role": "user", "content": "What is large language model?"}],
+     "temperature": 0.9 
+   }'
 ```
 
 ## Wrap-up
