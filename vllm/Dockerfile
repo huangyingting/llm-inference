@@ -24,6 +24,7 @@ FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
 ENV MAX_NUM_BATCHED_TOKENS=2048
 ENV DOWNLOAD_DIR=/models
 ENV MODEL=facebook/opt-125m
+ENV GPU_MEMORY_UTILIZATION=0.9
 COPY --from=builder /app/vllm/requirements.txt /tmp/requirements.txt
 COPY --from=builder /app/vllm/dist /tmp/dist  
 
@@ -41,4 +42,4 @@ RUN apt-get update -y && \
 
 EXPOSE 8000
 ENTRYPOINT [ "sh", "-c" ]
-CMD [ "python3 -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 --model $MODEL --download-dir $DOWNLOAD_DIR --max-num-batched-tokens $MAX_NUM_BATCHED_TOKENS"]
+CMD [ "python3 -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 --model $MODEL --download-dir $DOWNLOAD_DIR --max-num-batched-tokens $MAX_NUM_BATCHED_TOKENS --gpu-memory-utilization $GPU_MEMORY_UTILIZATION"]
