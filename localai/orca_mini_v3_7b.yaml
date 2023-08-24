@@ -18,16 +18,14 @@ config_file: |
   parameters:
     model: orca_mini_v3_7b.ggmlv3.q8_0.bin
     f16: true
-    top_k: 80
-    temperature: 0.2
-    top_p: 0.7
+    temperature: 0.6
+    top_p: 0.9
   context_size: 4096
   template:
     chat_message: orca_mini_v3_7b_chat
     completion: orca_mini_v3_7b_completion  
   system_prompt: |
-    You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
-    If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+    You are an AI assistant that follows instruction extremely well. Help as much as you can.
 
 files:
     - filename: "orca_mini_v3_7b.ggmlv3.q8_0.bin"
