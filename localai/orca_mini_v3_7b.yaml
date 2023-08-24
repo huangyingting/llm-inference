@@ -1,0 +1,45 @@
+name: "orca_mini_v3_7b"
+
+description: |
+  A LLama2-7b model trained on Orca Style datasets. 
+
+license: "https://ai.meta.com/llama/license/"
+urls:
+- https://ai.meta.com/llama/
+
+config_file: |
+  name: orca_mini_v3_7b
+  backend: llama
+  context_size: 4096
+  f16: true
+  gpu_layers: 512
+  debug: true
+  low_vram: false
+  parameters:
+    model: orca_mini_v3_7b.ggmlv3.q8_0.bin
+    f16: true
+    top_k: 80
+    temperature: 0.2
+    top_p: 0.7
+  context_size: 4096
+  template:
+    chat_message: orca_mini_v3_7b_chat
+    completion: orca_mini_v3_7b_completion  
+
+files:
+    - filename: "orca_mini_v3_7b.ggmlv3.q8_0.bin"
+      sha256: "0f0c17dcac15deab53d2b9252188adce8bf0b13cf2d6344aee30d0a03c8f97f7"
+      uri: "https://huggingface.co/TheBloke/orca_mini_v3_7B-GGML/resolve/main/orca_mini_v3_7b.ggmlv3.q8_0.bin"
+
+prompt_templates:
+- name: "orca_mini_v3_7b_chat"
+  content: |
+    Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+    ### Instruction:
+    {{.Input}}
+
+    ### Response:
+- name: "orca_mini_v3_7b_completion"
+  content: |
+      Complete the following sentence: {{.Input}}

@@ -18,7 +18,7 @@ RUN apt-get update -y && \
 
 FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
 ENV MAX_NUM_BATCHED_TOKENS=2048
-ENV DOWNLOAD_DIR=/data
+ENV DOWNLOAD_DIR=/models
 ENV MODEL=facebook/opt-125m
 COPY --from=builder /app/vllm/requirements.txt /tmp/requirements.txt
 COPY --from=builder /app/vllm/dist /tmp/dist  
@@ -33,7 +33,7 @@ RUN apt-get update -y && \
     apt-get remove -y python3-pip && \
     apt-get autoremove -y && \
     apt-get clean && \
-    mkdir /data 
+    mkdir /models 
 
 EXPOSE 8000
 ENTRYPOINT [ "sh", "-c" ]
