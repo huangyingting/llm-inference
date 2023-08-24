@@ -7,9 +7,10 @@
 ARG CUDA_VERSION="11.8.0"
 ARG CUDNN_VERSION="8"
 ARG UBUNTU_VERSION="22.04"
-ARG GO_VERSION="1.21.0"
+ARG GO_VERSION="1.20.7"
 ARG BUILD_TYPE="cublas"
 ARG GO_TAGS=""
+ARG LOCALAI_VERSION="v1.24.1"
 
 # Base NVidia CUDA Ubuntu image
 FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
@@ -30,11 +31,13 @@ RUN apt update -y && \
     rm -f go${GO_VERSION}.linux-amd64.tar.gz && \
     git clone https://github.com/go-skynet/LocalAI && \
     cd LocalAI && \
+    git checkout ${LOCALAI_VERSION} && \
     make get-sources && \
     make prepare && \
     make build
 
-FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+#FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
 WORKDIR /app
 ENV THREADS=2
 ENV GALLERIES='[{"name":"model-gallery", "url":"github:go-skynet/model-gallery/index.yaml"}, {"url": "github:go-skynet/model-gallery/huggingface.yaml","name":"huggingface"}]'
