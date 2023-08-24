@@ -14,8 +14,8 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     git clone https://github.com/vllm-project/vllm && \
-    git checkout ${VLLM_VERSION} && \
     cd vllm && \
+    git checkout ${VLLM_VERSION} && \
     pip wheel --no-cache-dir --no-deps --wheel-dir dist -r requirements.txt .
 
 
