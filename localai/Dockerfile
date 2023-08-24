@@ -1,9 +1,3 @@
-#curl http://localhost:8192/v1/chat/completions -H "Content-Type: application/json" -d '{
-#     "model": "orca_mini_v3_7b",
-#     "messages": [{"role": "user", "content": "What is large language model?"}],
-#     "temperature": 0.9 
-#   }'
-
 ARG CUDA_VERSION="11.8.0"
 ARG CUDNN_VERSION="8"
 ARG UBUNTU_VERSION="22.04"

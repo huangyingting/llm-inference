@@ -1,9 +1,11 @@
 ARG CUDA_VERSION="11.8.0"
 ARG CUDNN_VERSION="8"
 ARG UBUNTU_VERSION="22.04"
+ARG VLLM_VERSION="v0.1.3"
 
 # Base NVidia CUDA Ubuntu image
 FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
+ARG VLLM_VERSION
 ENV PATH="/usr/local/cuda/bin:${PATH}"
 WORKDIR /app
 RUN apt-get update -y && \
@@ -12,11 +14,13 @@ RUN apt-get update -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     git clone https://github.com/vllm-project/vllm && \
+    git checkout ${VLLM_VERSION} && \
     cd vllm && \
     pip wheel --no-cache-dir --no-deps --wheel-dir dist -r requirements.txt .
 
 
-FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+#FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
 ENV MAX_NUM_BATCHED_TOKENS=2048
 ENV DOWNLOAD_DIR=/models
 ENV MODEL=facebook/opt-125m
