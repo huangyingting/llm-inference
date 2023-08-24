@@ -8,7 +8,7 @@ metadata:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: vllm
+  name: localai
   namespace: llm
 spec:
   accessModes:
@@ -22,18 +22,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: vllm
-  name: vllm
+    app: localai
+  name: localai
   namespace: llm
 spec:
   selector:
     matchLabels:
-      app: vllm
+      app: localai
   replicas: 2
   template:
     metadata:
       labels:
-        app: vllm
+        app: localai
     spec:
       affinity:
         podAntiAffinity:
@@ -43,12 +43,12 @@ spec:
                 - key: "app"
                   operator: In
                   values:
-                  - vllm
+                  - localai
             topologyKey: "kubernetes.io/hostname"    
       containers:
-      - image: ghcr.io/huangyingting/llm-inference-vllm:main
+      - image: ghcr.io/huangyingting/llm-inference-localai:main
         imagePullPolicy: Always
-        name: vllm
+        name: localai
         resources:
           limits:
            nvidia.com/gpu: 1        
@@ -59,13 +59,13 @@ spec:
         volumeMounts:
         - name: shm
           mountPath: /dev/shm        
-        - name: vllm
+        - name: localai
           mountPath: "/data"
       volumes:
       - name: shm
         emptyDir:
           medium: Memory
           sizeLimit: 1Gi
-      - name: vllm
+      - name: localai
         persistentVolumeClaim:
-          claimName: vllm
+          claimName: localai

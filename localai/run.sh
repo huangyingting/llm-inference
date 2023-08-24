@@ -1,1 +1,1 @@
-docker run -it --rm --gpus all -v ~/models:/models -p 8192:8080 huangyingting/localai
+docker run -it --rm --gpus all -v ~/models:/models -p 8192:8080 -e PRELOAD_MODELS='[{"url":"github:huangyingting/llm-inference/localai/orca_mini_v3_7b.yaml"}]' huangyingting/localai

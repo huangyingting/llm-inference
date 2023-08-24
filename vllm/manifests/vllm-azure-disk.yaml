@@ -34,7 +34,7 @@ spec:
                   - vllm
             topologyKey: "kubernetes.io/hostname"    
       containers:
-      - image: ghcr.io/huangyingting/inference-images-vllm:main
+      - image: ghcr.io/huangyingting/llm-inference-vllm:main
         imagePullPolicy: Always
         name: vllm
         resources:
