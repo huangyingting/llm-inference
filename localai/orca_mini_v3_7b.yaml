@@ -25,6 +25,9 @@ config_file: |
   template:
     chat_message: orca_mini_v3_7b_chat
     completion: orca_mini_v3_7b_completion  
+  system_prompt: |
+    You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe.  Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.
+    If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
 
 files:
     - filename: "orca_mini_v3_7b.ggmlv3.q8_0.bin"
@@ -34,10 +37,12 @@ files:
 prompt_templates:
 - name: "orca_mini_v3_7b_chat"
   content: |
-    Below is an instruction that describes a task. Write a response that appropriately completes the request.
-
-    ### Instruction:
-    {{.Input}}
+    {{if eq .RoleName "assistant"}}{{.Content}}{{else}}
+    [INST]
+    {{if eq .RoleName "system"}}<<SYS>>{{.Content}}<</SYS>>{{else if and (.SystemPrompt) (eq .MessageIndex 0)}}<<SYS>>{{.SystemPrompt}}<</SYS>>{{end}}
+    {{if .Content}}{{.Content}}{{end}}
+    [/INST] 
+    {{end}}
 
     ### Response:
 - name: "orca_mini_v3_7b_completion"
