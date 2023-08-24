@@ -36,7 +36,7 @@ RUN apt update -y && \
     find /tmp/dist/*.whl | xargs pip install --no-cache-dir && \
     rm -f /tmp/requirements.txt && \
     rm -rf /tmp/dist && \
-    apt remove -y python3-pip && \
+    # apt remove -y python3-pip && \
     apt autoremove -y && \
     apt clean && \
     mkdir /models
