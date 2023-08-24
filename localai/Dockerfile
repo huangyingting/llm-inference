@@ -1,3 +1,9 @@
+#curl http://localhost:8192/v1/chat/completions -H "Content-Type: application/json" -d '{
+#     "model": "orca_mini_v3_7b",
+#     "messages": [{"role": "user", "content": "What is large language model?"}],
+#     "temperature": 0.9 
+#   }'
+
 ARG CUDA_VERSION="11.8.0"
 ARG CUDNN_VERSION="8"
 ARG UBUNTU_VERSION="22.04"
@@ -28,7 +34,8 @@ RUN apt update -y && \
     make prepare && \
     make build
 
-FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+#FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-runtime-ubuntu$UBUNTU_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-base-ubuntu$UBUNTU_VERSION
 WORKDIR /app
 ENV THREADS=2
 ENV GALLERIES='[{"name":"model-gallery", "url":"github:go-skynet/model-gallery/index.yaml"}, {"url": "github:go-skynet/model-gallery/huggingface.yaml","name":"huggingface"}]'
