@@ -22,7 +22,7 @@ config_file: |
     top_p: 0.9
   context_size: 4096
   template:
-    chat_message: orca_mini_v3_7b_chat
+    chat: orca_mini_v3_7b_chat
     completion: orca_mini_v3_7b_completion  
   system_prompt: |
     You are an AI assistant that follows instruction extremely well. Help as much as you can.
