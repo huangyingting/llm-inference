@@ -1,17 +1,53 @@
-name: build-images
+name: release
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - 'main'
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+        default: 'v0.0.0-dev'
+        type: string
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: check tag format
+      run: |
+        if [[ "${{ github.event.inputs.tag }}" =~ ^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
+          echo "Tag format is valid."
+        else
+          echo "Invalid tag format: ${{ github.event.inputs.tag }}"
+          exit 1
+        fi
+
+    - name: create github release tag
+      run: |
+        if git rev-parse -q --verify "refs/tags/${{ github.event.inputs.tag  }}"; then
+           echo "Tag ${{ github.event.inputs.tag  }} already exist. Exiting workflow."
+           exit 1
+        else
+           gh release create ${{ github.event.inputs.tag }} --title "MCAD ${{ github.event.inputs.tag  }} Release" --generate-notes --target ${{ github.ref }}
+        fi
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
   build-and-push-image:
     name: build and push images
+    needs: release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -40,7 +76,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ github.token}}
+          password: ${{ github.token }}
 
       - name: extract metadata (tags, labels)
         id: meta

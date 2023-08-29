@@ -18,9 +18,7 @@ RUN apt update -y && \
     git clone https://github.com/huggingface/text-generation-inference && \
     cd text-generation-inference && \
     git checkout ${TGI_VERSION} && \
-    cargo build --release && \
-    cd server && \
-    make gen-server
+    cargo build --release
 
 FROM builder as flash-att-builder
 WORKDIR /build
@@ -64,22 +62,25 @@ ENV HUGGINGFACE_HUB_CACHE=/models \
     PORT=80
 
 # Copy build artifacts from flash attention builder
-COPY --from=flash-att-builder /build/flash-attention/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
-COPY --from=flash-att-builder /build/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
-COPY --from=flash-att-builder /build/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-builder /build/flash-attention/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-builder /build/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-builder /build/flash-attention/csrc/rotary/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
 
 # Copy build artifacts from flash attention v2 builder
-COPY --from=flash-att-v2-builder /build/flash-attention-v2/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-v2-builder /build/flash-attention-v2/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
 
 # Copy build artifacts from custom kernels builder
-COPY --from=custom-kernels-builder /build/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
+COPY --from=custom-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
 # Copy build artifacts from exllama kernels builder
-COPY --from=exllama-kernels-builder /build/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
+COPY --from=exllama-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
 
 # Copy builds artifacts from vllm builder
-COPY --from=vllm-builder /build/vllm/build/lib.linux-x86_64-cpython-310 /usr/local/lib/python3.10/site-packages
+COPY --from=vllm-builder /build/vllm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
 
-COPY --from=builder /build/text-generation-inference/server/requires.txt .
+COPY --from=builder /build/text-generation-inference/proto proto
+COPY --from=builder /build/text-generation-inference/server server
+COPY --from=builder /build/text-generation-inference/server/Makefile server/Makefile
+COPY --from=builder /build/text-generation-inference/server/requirements.txt server/requirements.txt
 
 RUN apt update -y && \
     apt install -y python3 python3-pip && \
@@ -87,6 +88,9 @@ RUN apt update -y && \
     pip3 install torch --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir && \
     pip install -r requirements.txt --no-cache-dir && \
     pip install einops --no-cache-dir &&  \
+    cd server && \
+    make gen-server && \
+    pip install -r requirements.txt && \
     pip install ".[bnb, accelerate, quantize]" --no-cache-dir
 
 ENTRYPOINT ["text-generation-launcher"]
