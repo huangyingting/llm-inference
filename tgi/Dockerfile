@@ -10,8 +10,8 @@ ENV PATH="/usr/local/cuda/bin:/root/.cargo/bin:${PATH}"
 WORKDIR /build
 RUN apt update -y && \
     apt install -y python3 python3-pip git curl pkg-config libssl-dev protobuf-compiler python-is-python3 && \
-    python3 -m pip install --upgrade pip && \
-    pip3 install torch --index-url https://download.pytorch.org/whl/cu118 && \
+    python -m pip install --upgrade pip && \
+    pip install torch --index-url https://download.pytorch.org/whl/cu118 && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* && \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
@@ -54,28 +54,29 @@ COPY --from=builder /build/text-generation-inference/server/Makefile-vllm Makefi
 RUN pip install packaging && make build-vllm
 
 # Text Generation Inference base image
-FROM nvidia/cuda:$CUDA_VERSION-base-ubuntu$UBUNTU_VERSION
+FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
 WORKDIR /app
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/models \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    PORT=80
+    PORT=80 \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64
 
 # Copy build artifacts from flash attention builder
-COPY --from=flash-att-builder /build/flash-attention/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
-COPY --from=flash-att-builder /build/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
-COPY --from=flash-att-builder /build/flash-attention/csrc/rotary/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-builder /build/flash-attention/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
+COPY --from=flash-att-builder /build/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
+COPY --from=flash-att-builder /build/flash-attention/csrc/rotary/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
 
 # Copy build artifacts from flash attention v2 builder
-COPY --from=flash-att-v2-builder /build/flash-attention-v2/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=flash-att-v2-builder /build/flash-attention-v2/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
 
 # Copy build artifacts from custom kernels builder
-COPY --from=custom-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=custom-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
 # Copy build artifacts from exllama kernels builder
-COPY --from=exllama-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=exllama-kernels-builder /build/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
 
 # Copy builds artifacts from vllm builder
-COPY --from=vllm-builder /build/vllm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/site-packages
+COPY --from=vllm-builder /build/vllm/build/lib.linux-x86_64-3.10 /usr/local/lib/python3.10/dist-packages
 
 COPY --from=builder /build/text-generation-inference/proto proto
 COPY --from=builder /build/text-generation-inference/server server
@@ -83,15 +84,25 @@ COPY --from=builder /build/text-generation-inference/server/Makefile server/Make
 COPY --from=builder /build/text-generation-inference/server/requirements.txt server/requirements.txt
 
 RUN apt update -y && \
-    apt install -y python3 python3-pip && \
-    python3 -m pip install --upgrade pip && \
-    pip3 install torch --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir && \
-    pip install -r requirements.txt --no-cache-dir && \
-    pip install einops --no-cache-dir &&  \
+    apt install -y python3 python3-pip python-is-python3 && \
+    python -m pip install --upgrade pip && \
+    pip install torch --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir && \
+    pip install einops --no-cache-dir && \
     cd server && \
     make gen-server && \
-    pip install -r requirements.txt && \
-    pip install ".[bnb, accelerate, quantize]" --no-cache-dir
+    pip install -r requirements.txt --no-cache-dir && \
+    pip install ".[bnb, accelerate, quantize]" --no-cache-dir && \
+    apt remove -y python3-pip && \
+    apt autoremove -y && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install benchmarker
+COPY --from=builder /build/text-generation-inference/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /build/text-generation-inference/target/release/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /build/text-generation-inference/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
