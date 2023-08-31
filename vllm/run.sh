@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker run -d --gpus all -it --rm --shm-size=8g -e MODEL=lmsys/vicuna-7b-v1.5 -v ~/models:/models -p 8192:8000 huangyingting/vllm
+docker run -d --gpus all -it --rm --shm-size=8g -e MODEL=lmsys/vicuna-7b-v1.5 -v ~/models:/models -e GPU_MEMORY_UTILIZATION=0.2 -p 8192:8000 huangyingting/vllm
 
 SECONDS=0
 

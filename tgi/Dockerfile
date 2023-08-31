@@ -4,7 +4,8 @@ ARG UBUNTU_VERSION="22.04"
 ARG TGI_VERSION="v1.0.2"
 
 # Base NVidia CUDA Ubuntu image
-FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
+# FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
 ARG VLLM_VERSION
 ENV PATH="/usr/local/cuda/bin:/root/.cargo/bin:${PATH}"
 WORKDIR /build
@@ -54,7 +55,8 @@ COPY --from=builder /build/text-generation-inference/server/Makefile-vllm Makefi
 RUN pip install packaging && make build-vllm
 
 # Text Generation Inference base image
-FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
+# FROM nvidia/cuda:$CUDA_VERSION-runtime-ubuntu$UBUNTU_VERSION
+FROM ubuntu:$UBUNTU_VERSION
 WORKDIR /app
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/models \
@@ -86,7 +88,8 @@ COPY --from=builder /build/text-generation-inference/server/requirements.txt ser
 RUN apt update -y && \
     apt install -y python3 python3-pip python-is-python3 && \
     python -m pip install --upgrade pip && \
-    pip install torch --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir && \
+    # pip install torch --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir && \
+    pip install torch --no-cache-dir && \
     pip install einops --no-cache-dir && \
     cd server && \
     make gen-server && \
