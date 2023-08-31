@@ -1,14 +1,14 @@
-name: "orca_mini_v3_7b"
+name: "vicuna-7b-v1.5"
 
 description: |
-  A LLama2-7b model trained on Orca Style datasets. 
+  A LLama2-7b model trained on user-shared conversations collected from ShareGPT. 
 
 license: "https://ai.meta.com/llama/license/"
 urls:
 - https://ai.meta.com/llama/
 
 config_file: |
-  name: orca_mini_v3_7b
+  name: vicuna-7b-v1.5
   backend: llama
   context_size: 4096
   f16: true
@@ -16,30 +16,30 @@ config_file: |
   debug: true
   low_vram: false
   parameters:
-    model: orca_mini_v3_7b.ggmlv3.q8_0.bin
+    model: vicuna-7b-v1.5.ggmlv3.q8_0.bin
     f16: true
     temperature: 0.6
     top_p: 0.9
   context_size: 4096
   template:
-    chat: orca_mini_v3_7b_chat
-    completion: orca_mini_v3_7b_completion  
+    chat: vicuna-7b-v1.5-chat
+    completion: vicuna-7b-v1.5-completion
   system_prompt: |
     You are an AI assistant that follows instruction extremely well. Help as much as you can.
 
 files:
-    - filename: "orca_mini_v3_7b.ggmlv3.q8_0.bin"
-      sha256: "0f0c17dcac15deab53d2b9252188adce8bf0b13cf2d6344aee30d0a03c8f97f7"
-      uri: "https://huggingface.co/TheBloke/orca_mini_v3_7B-GGML/resolve/main/orca_mini_v3_7b.ggmlv3.q8_0.bin"
+    - filename: "vicuna-7b-v1.5.ggmlv3.q8_0.bin"
+      sha256: "096aa5954e2089983cde5071537f4ff58fb5df888355865eb6cb41afa5f8cf80"
+      uri: "https://huggingface.co/TheBloke/vicuna-7B-v1.5-GGML/resolve/main/vicuna-7b-v1.5.ggmlv3.q8_0.bin"
 
 prompt_templates:
-- name: "orca_mini_v3_7b_chat"
+- name: "vicuna-7b-v1.5-chat"
   content: |
       Below is an instruction that describes a task. Write a response that appropriately completes the request
 
       ### Instruction: {{.Input}}
 
       ### Response:
-- name: "orca_mini_v3_7b_completion"
+- name: "vicuna-7b-v1.5-completion"
   content: |
       Complete the following sentence: {{.Input}}
