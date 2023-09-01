@@ -17,6 +17,7 @@ ARG LOCALAI_VERSION
 
 ENV BUILD_TYPE=${BUILD_TYPE}
 ENV GO_TAGS=${GO_TAGS}
+ENV WHISPER_CUBLAS=1
 
 ENV PATH="/usr/local/cuda/bin:${PATH}:/usr/local/go/bin"
 WORKDIR /app
