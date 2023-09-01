@@ -7,7 +7,8 @@ ARG GO_TAGS=""
 ARG LOCALAI_VERSION="v1.25.0"
 
 # Base NVidia CUDA Ubuntu image
-FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
+# FROM nvidia/cuda:$CUDA_VERSION-cudnn$CUDNN_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
+FROM nvidia/cuda:$CUDA_VERSION-devel-ubuntu$UBUNTU_VERSION as builder
 
 ARG GO_VERSION
 ARG BUILD_TYPE
@@ -20,7 +21,7 @@ ENV GO_TAGS=${GO_TAGS}
 ENV PATH="/usr/local/cuda/bin:${PATH}:/usr/local/go/bin"
 WORKDIR /app
 RUN apt update -y && \
-    apt install -y git wget cmake && \
+    apt install -y git wget cmake&& \
     wget https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -xf go${GO_VERSION}.linux-amd64.tar.gz -C /usr/local && \
     rm -f go${GO_VERSION}.linux-amd64.tar.gz && \
@@ -40,6 +41,8 @@ ENV MODELS_PATH=/models
 ENV DEBUG=true
 COPY --from=builder /app/LocalAI/local-ai .
 RUN mkdir /models && \
+    apt update -y && \
+    apt install -y ffmpeg && \
     apt autoremove -y && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
